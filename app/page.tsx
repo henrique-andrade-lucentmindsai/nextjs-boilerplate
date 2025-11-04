@@ -1,65 +1,121 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useState } from 'react';
+
+type BxAuth = {
+  domain?: string;   // e.g., b24-xxxx.bitrix24.com.br
+  member_id?: string;
+  user_id?: string | number;
+};
+
+export default function Page() {
+  const [auth, setAuth] = useState<BxAuth>({});
+  const [mobile, setMobile] = useState('');
+  const [configKey, setConfigKey] = useState('');
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Grab Bitrix context if embedded in Bitrix
+    try {
+      // @ts-ignore
+      if (typeof BX24 !== 'undefined') {
+        // @ts-ignore
+        BX24.init(() => {
+          try {
+            // @ts-ignore
+            const a = BX24.getAuth() || {};
+            // @ts-ignore
+            const site: string = BX24.getSite?.() || '';
+            const domain = site.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+            setAuth({
+              domain: domain || 'unknown',
+              member_id: a.member_id,
+              user_id: a.user_id,
+            });
+          } catch (e) {
+            console.warn('BX24 context error', e);
+          }
+        });
+      } else {
+        // local test fallback
+        setAuth({ domain: 'local-test', member_id: 'dev', user_id: 'dev' });
+      }
+    } catch {}
+  }, []);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus('Saving...');
+
+    const res = await fetch('/api/save-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        portalDomain: auth.domain,
+        memberId: auth.member_id,
+        userId: auth.user_id,
+        mobile,
+        configKey,
+      }),
+    });
+
+    const data = await res.json();
+    setStatus(res.ok ? 'Saved!' : `Error: ${data?.error || 'unknown error'}`);
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main style={{ maxWidth: 560, margin: '48px auto', padding: '0 16px' }}>
+      <h2 style={{ margin: '0 0 8px' }}>Configuration</h2>
+      <p style={{ color: '#666', marginTop: 0 }}>
+        Portal: <b>{auth.domain || '(detecting...)'}</b>
+      </p>
+
+      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
+        <label style={{ display: 'grid', gap: 6 }}>
+          Mobile number
+          <input
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+            placeholder="+55 11 99999-9999"
+            required
+            inputMode="tel"
+            style={{ padding: 10, border: '1px solid #ddd', borderRadius: 10 }}
+          />
+        </label>
+
+        <label style={{ display: 'grid', gap: 6 }}>
+          Configuration key
+          <input
+            value={configKey}
+            onChange={(e) => setConfigKey(e.target.value)}
+            placeholder="your-config-key"
+            required
+            style={{ padding: 10, border: '1px solid #ddd', borderRadius: 10 }}
+          />
+        </label>
+
+        <button
+          type="submit"
+          style={{
+            padding: '12px 14px',
+            borderRadius: 10,
+            border: 'none',
+            background: '#111',
+            color: '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          Save
+        </button>
+      </form>
+
+      {status && <p style={{ marginTop: 12 }}>{status}</p>}
+
+      <div style={{ marginTop: 24, fontSize: 12, color: '#888' }}>
+        <div>member_id: {String(auth.member_id || '')}</div>
+        <div>user_id: {String(auth.user_id || '')}</div>
+      </div>
+    </main>
   );
 }
